@@ -1,0 +1,13 @@
+node_modules/
+frontend/node_modules/
+
+.env
+
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+
+dist/
+frontend/dist/
+
+uploads/
