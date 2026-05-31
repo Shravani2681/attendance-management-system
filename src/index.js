@@ -36,6 +36,10 @@ app.use('/api/attendance', attendanceRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/performance', performanceRoutes);
 
+app.get('/', (req, res) => {
+  res.send('Attendance Management System Backend Running Successfully');
+});
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date() });
