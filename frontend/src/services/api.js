@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-baseURL: "https://attendance-management-system-mn3x.onrender.com/api"
+baseURL: "http://localhost:5000/api"
 });
 
 // Add a request interceptor to inject the token
