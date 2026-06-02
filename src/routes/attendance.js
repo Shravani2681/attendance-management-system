@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const https = require('https');
-const db = require('../config/database');
+const { query } = require('../config/postgres');
 const { auth } = require('../middleware/auth');
 const { calculateSalaryType, calculateDeduction, calculateEarnedAmount,
         calculateCheckoutSalaryType, calculateCheckoutDeduction, calculateCheckoutDeductionReason } = require('../services/salary');
@@ -67,7 +67,12 @@ router.post('/mark', auth, async (req, res) => {
     const today = nowIST.toISOString().split('T')[0];
 
     // One attendance per day rule
-    const existing = db.prepare('SELECT id FROM attendance WHERE employee_id = ? AND date = ?').get(employeeId, today);
+    const existingResult = await query(
+  'SELECT id FROM attendance WHERE employee_id = $1 AND date = $2',
+  [employeeId, today]
+);
+
+const existing = existingResult.rows[0];
     if (existing)
       return res.status(409).json({ success: false, message: 'Attendance already marked for today' });
 
@@ -92,20 +97,27 @@ router.post('/mark', auth, async (req, res) => {
     // Auto-derive display status
     const autoStatus = salaryType === 'HALF' ? 'Half Day' : deductionAmount > 0 ? 'Late' : 'Present';
 
-    db.prepare(`
-      INSERT INTO attendance
-        (id, employee_id, date, check_in_time, selfie,
-         latitude, longitude, gps_status, gps_distance, salary_type,
-         deduction_amount, checkin_address, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      id, employeeId, today, checkInTime, selfie,
-      latitude, longitude, gpsStatus, gpsDistance, salaryType,
-      deductionAmount, checkinAddress, autoStatus
-    );
+  await query(
+  `INSERT INTO attendance
+    (id, employee_id, date, check_in_time, selfie,
+     latitude, longitude, gps_status, gps_distance, salary_type,
+     deduction_amount, checkin_address, status)
+   VALUES
+    ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+  [
+    id, employeeId, today, checkInTime, selfie,
+    latitude, longitude, gpsStatus, gpsDistance, salaryType,
+    deductionAmount, checkinAddress, autoStatus
+  ]
+);
 
     // Google Sheets sync (non-blocking)
-    const fullEmployee = db.prepare('SELECT * FROM employees WHERE id = ?').get(employeeId);
+    const employeeResult = await query(
+  'SELECT * FROM employees WHERE id = $1',
+  [employeeId]
+);
+
+const fullEmployee = employeeResult.rows[0];
     appendRow({
       employee_id: employeeId,
       employee_name: fullEmployee.name,
@@ -123,7 +135,12 @@ router.post('/mark', auth, async (req, res) => {
       is_edited: false,
       notes: ''
     }).then(rowNum => {
-      if (rowNum) db.prepare('UPDATE attendance SET sheets_row = ? WHERE id = ?').run(rowNum, id);
+      if (rowNum) {
+  query(
+    'UPDATE attendance SET sheets_row = $1 WHERE id = $2',
+    [rowNum, id]
+  ).catch(() => {});
+}
     }).catch(() => {});
 
     res.status(201).json({
@@ -169,7 +186,12 @@ router.post('/checkout', auth, async (req, res) => {
     const nowIST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
     const today = nowIST.toISOString().split('T')[0];
 
-    const existing = db.prepare('SELECT * FROM attendance WHERE employee_id = ? AND date = ?').get(employeeId, today);
+    const existingResult = await query(
+  'SELECT * FROM attendance WHERE employee_id = $1 AND date = $2',
+  [employeeId, today]
+);
+
+const existing = existingResult.rows[0];
     if (!existing) return res.status(404).json({ success: false, message: 'No check-in found for today' });
     if (existing.check_out_time) return res.status(409).json({ success: false, message: 'Check-out already marked for today' });
 
@@ -196,24 +218,40 @@ router.post('/checkout', auth, async (req, res) => {
       : (existing.deduction_amount || 0) > 0 ? 'Late'
       : 'Present';
 
-    db.prepare(`
-      UPDATE attendance
-      SET check_out_time = ?, checkout_selfie = ?,
-          checkout_latitude = ?, checkout_longitude = ?, checkout_address = ?,
-          checkout_deduction_amount = ?, checkout_deduction_reason = ?,
-          salary_type = ?, status = ?
-      WHERE id = ?
-    `).run(
-      checkOutTime, checkout_selfie,
-      checkout_latitude, checkout_longitude, checkoutAddress,
-      checkoutDeduction, checkoutDeductionReason,
-      finalSalaryType, autoStatus,
-      existing.id
-    );
+  await query(
+  `UPDATE attendance
+   SET check_out_time = $1,
+       checkout_selfie = $2,
+       checkout_latitude = $3,
+       checkout_longitude = $4,
+       checkout_address = $5,
+       checkout_deduction_amount = $6,
+       checkout_deduction_reason = $7,
+       salary_type = $8,
+       status = $9
+   WHERE id = $10`,
+  [
+    checkOutTime,
+    checkout_selfie,
+    checkout_latitude,
+    checkout_longitude,
+    checkoutAddress,
+    checkoutDeduction,
+    checkoutDeductionReason,
+    finalSalaryType,
+    autoStatus,
+    existing.id
+  ]
+);
 
     // Google Sheets sync
     if (existing.sheets_row) {
-      const fullEmployee = db.prepare('SELECT * FROM employees WHERE id = ?').get(employeeId);
+      const employeeResult = await query(
+  'SELECT * FROM employees WHERE id = $1',
+  [employeeId]
+);
+
+const fullEmployee = employeeResult.rows[0];
       const earnedAmount = calculateEarnedAmount(
         fullEmployee.monthly_salary,
         finalSalaryType,
@@ -257,48 +295,79 @@ router.post('/checkout', auth, async (req, res) => {
   }
 });
 
-
 // GET /api/attendance/today
-router.get('/today', auth, (req, res) => {
+router.get('/today', auth, async (req, res) => {
   try {
     const nowIST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
     const today = nowIST.toISOString().split('T')[0];
-    const record = db.prepare('SELECT * FROM attendance WHERE employee_id = ? AND date = ?').get(req.user.id, today);
-    res.json({ success: true, marked: !!record, record: record || null });
+
+    const result = await query(
+      `SELECT * FROM attendance WHERE employee_id = $1 AND date = $2`,
+      [req.user.id, today]
+    );
+
+    const record = result.rows[0];
+
+    res.json({
+      success: true,
+      marked: !!record,
+      record: record || null
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 });
 
 // GET /api/attendance/my?month=2025-05
-router.get('/my', auth, (req, res) => {
+router.get('/my', auth, async (req, res) => {
   try {
     const { month, limit = 60 } = req.query;
-    let query = 'SELECT * FROM attendance WHERE employee_id = ?';
+
+    let sql = `SELECT * FROM attendance WHERE employee_id = $1`;
     const params = [req.user.id];
-    if (month) { query += ' AND date LIKE ?'; params.push(`${month}%`); }
-    query += ' ORDER BY date DESC LIMIT ?';
+    let idx = 2;
+
+    if (month) {
+      sql += ` AND date LIKE $${idx}`;
+      params.push(`${month}%`);
+      idx++;
+    }
+
+    sql += ` ORDER BY date DESC LIMIT $${idx}`;
     params.push(parseInt(limit));
-    const records = db.prepare(query).all(...params);
-    res.json({ success: true, data: records });
+
+    const result = await query(sql, params);
+
+    res.json({
+      success: true,
+      data: result.rows
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 });
 
 // GET /api/attendance/summary
-router.get('/summary', auth, (req, res) => {
+router.get('/summary', auth, async (req, res) => {
   try {
     const { month } = req.query;
+
     const nowIST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
     const currentMonth = month || nowIST.toISOString().slice(0, 7);
-    const records = db.prepare(
-      'SELECT * FROM attendance WHERE employee_id = ? AND date LIKE ?'
-    ).all(req.user.id, `${currentMonth}%`);
+
+    const result = await query(
+      `SELECT * FROM attendance WHERE employee_id = $1 AND date LIKE $2`,
+      [req.user.id, `${currentMonth}%`]
+    );
 
     const { calculateMonthlySummary } = require('../services/salary');
-    const summary = calculateMonthlySummary(records, req.user.monthly_salary);
-    res.json({ success: true, month: currentMonth, summary });
+    const summary = calculateMonthlySummary(result.rows, req.user.monthly_salary);
+
+    res.json({
+      success: true,
+      month: currentMonth,
+      summary
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

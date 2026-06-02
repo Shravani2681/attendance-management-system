@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const db = require('../config/database');
+const { query } = require('../config/postgres');
 const { auth, adminOnly } = require('../middleware/auth');
 const { calculateEarnedAmount } = require('../services/salary');
 const { updateRow } = require('../services/googleSheets');
@@ -166,69 +167,92 @@ router.get('/attendance/:id/selfie', (req, res) => {
 // PUT /api/admin/attendance/:id
 router.put('/attendance/:id', async (req, res) => {
   try {
-    const { check_in_time, check_out_time, salary_type, gps_status, notes, selfie,
-            deduction_amount, checkout_deduction_amount, status } = req.body;
-    const record = db.prepare(`
-      SELECT a.*, e.name as employee_name, e.email, e.department, e.monthly_salary
-      FROM attendance a JOIN employees e ON a.employee_id = e.id
-      WHERE a.id = ?
-    `).get(req.params.id);
+    const {
+      check_in_time,
+      check_out_time,
+      salary_type,
+      gps_status,
+      notes,
+      selfie,
+      deduction_amount,
+      checkout_deduction_amount,
+      status
+    } = req.body;
 
-    if (!record) return res.status(404).json({ success: false, message: 'Record not found' });
+    const recordResult = await query(
+      `SELECT a.*, e.name as employee_name, e.email, e.department, e.monthly_salary
+       FROM attendance a
+       JOIN employees e ON a.employee_id = e.id
+       WHERE a.id = $1`,
+      [req.params.id]
+    );
+
+    const record = recordResult.rows[0];
+
+    if (!record) {
+      return res.status(404).json({
+        success: false,
+        message: 'Record not found'
+      });
+    }
 
     const updates = {
-      check_in_time:             check_in_time    || record.check_in_time,
-      check_out_time:            check_out_time   !== undefined ? check_out_time   : record.check_out_time,
-      salary_type:               salary_type      || record.salary_type,
-      gps_status:                gps_status       || record.gps_status,
-      notes:                     notes            !== undefined ? notes            : record.notes,
-      selfie:                    selfie            !== undefined ? selfie           : record.selfie,
-      deduction_amount:          deduction_amount          !== undefined ? Number(deduction_amount)          : (record.deduction_amount || 0),
-      checkout_deduction_amount: checkout_deduction_amount !== undefined ? Number(checkout_deduction_amount) : (record.checkout_deduction_amount || 0),
-      status:                    status           !== undefined ? status            : (record.status || 'Present'),
+      check_in_time: check_in_time || record.check_in_time,
+      check_out_time: check_out_time !== undefined ? check_out_time : record.check_out_time,
+      salary_type: salary_type || record.salary_type,
+      gps_status: gps_status || record.gps_status,
+      notes: notes !== undefined ? notes : record.notes,
+      selfie: selfie !== undefined ? selfie : record.selfie,
+      deduction_amount: deduction_amount !== undefined ? Number(deduction_amount) : Number(record.deduction_amount || 0),
+      checkout_deduction_amount: checkout_deduction_amount !== undefined ? Number(checkout_deduction_amount) : Number(record.checkout_deduction_amount || 0),
+      status: status !== undefined ? status : (record.status || 'Present')
     };
 
-    db.prepare(`
-      UPDATE attendance
-      SET check_in_time=?, check_out_time=?, salary_type=?, gps_status=?, notes=?,
-          selfie=?, deduction_amount=?, checkout_deduction_amount=?, status=?,
-          is_edited=1, edited_by=?
-      WHERE id=?
-    `).run(
-      updates.check_in_time, updates.check_out_time, updates.salary_type,
-      updates.gps_status, updates.notes, updates.selfie,
-      updates.deduction_amount, updates.checkout_deduction_amount, updates.status,
-      req.user.id, req.params.id
+    await query(
+      `UPDATE attendance
+       SET check_in_time = $1,
+           check_out_time = $2,
+           salary_type = $3,
+           gps_status = $4,
+           notes = $5,
+           selfie = $6,
+           deduction_amount = $7,
+           checkout_deduction_amount = $8,
+           status = $9,
+           is_edited = 1,
+           edited_by = $10
+       WHERE id = $11`,
+      [
+        updates.check_in_time,
+        updates.check_out_time,
+        updates.salary_type,
+        updates.gps_status,
+        updates.notes,
+        updates.selfie,
+        updates.deduction_amount,
+        updates.checkout_deduction_amount,
+        updates.status,
+        req.user.id,
+        req.params.id
+      ]
     );
 
-    // Sync to Google Sheets — pass both deductions to earned amount calc
-    const earnedAmount = calculateEarnedAmount(
-      record.monthly_salary,
-      updates.salary_type,
-      updates.deduction_amount,
-      updates.checkout_deduction_amount
+    const updatedResult = await query(
+      `SELECT * FROM attendance WHERE id = $1`,
+      [req.params.id]
     );
-    updateRow(record.sheets_row, {
-      employee_id:    record.employee_id,
-      employee_name:  record.employee_name,
-      department:     record.department,
-      email:          record.email,
-      date:           record.date,
-      check_in_time:  updates.check_in_time,
-      check_out_time: updates.check_out_time,
-      gps_status:     updates.gps_status,
-      gps_distance:   record.gps_distance,
-      salary_type:    updates.salary_type,
-      monthly_salary: record.monthly_salary,
-      earned_amount:  earnedAmount,
-      is_edited:      true,
-      notes:          updates.notes,
-    }).catch(() => {});
 
-    const updated = db.prepare('SELECT * FROM attendance WHERE id = ?').get(req.params.id);
-    res.json({ success: true, message: 'Attendance updated', data: updated });
+    res.json({
+      success: true,
+      message: 'Attendance updated',
+      data: updatedResult.rows[0]
+    });
+
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    res.status(500).json({
+      success: false,
+      message: err.message
+    });
   }
 });
 
@@ -456,21 +480,46 @@ router.get('/employees/export', async (req, res) => {
 // ── Admin Performance Routes ──────────────────────────────────────────────────
 
 // GET /api/admin/performance?employee_id=&month=2025-05
-router.get('/performance', (req, res) => {
+router.get('/performance', async (req, res) => {
   try {
     const { employee_id, month } = req.query;
-    let query = `
+
+    let sql = `
       SELECT p.*, e.name as employee_name, e.department, e.email
-      FROM performance p JOIN employees e ON p.employee_id = e.id WHERE 1=1
+      FROM performance p
+      JOIN employees e ON p.employee_id = e.id
+      WHERE 1=1
     `;
+
     const params = [];
-    if (employee_id) { query += ' AND p.employee_id = ?'; params.push(employee_id); }
-    if (month)       { query += ' AND p.date LIKE ?';    params.push(`${month}%`); }
-    query += ' ORDER BY p.date DESC, e.name ASC';
-    const records = db.prepare(query).all(...params);
-    res.json({ success: true, data: records });
+    let idx = 1;
+
+    if (employee_id) {
+      sql += ` AND p.employee_id = $${idx}`;
+      params.push(employee_id);
+      idx++;
+    }
+
+    if (month) {
+      sql += ` AND p.date LIKE $${idx}`;
+      params.push(`${month}%`);
+      idx++;
+    }
+
+    sql += ` ORDER BY p.date DESC, e.name ASC`;
+
+    const result = await query(sql, params);
+
+    res.json({
+      success: true,
+      data: result.rows
+    });
+
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    res.status(500).json({
+      success: false,
+      message: err.message
+    });
   }
 });
 
@@ -730,27 +779,56 @@ router.get('/salary/download', async (req, res) => {
  * GET /api/admin/attendance-status?date=YYYY-MM-DD
  * Returns ALL employees with Present/Absent status for the given date.
  */
-router.get('/attendance-status', (req, res) => {
+router.get('/attendance-status', async (req, res) => {
   try {
     const { date } = req.query;
-    const nowIST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+
+    const nowIST = new Date(
+      new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })
+    );
+
     const targetDate = date || nowIST.toISOString().split('T')[0];
 
-    const rows = db.prepare(`
-      SELECT e.id as employee_id, e.name as employee_name, e.department, e.monthly_salary,
-             a.id, a.check_in_time, a.check_out_time, a.salary_type,
-             a.deduction_amount, a.checkout_deduction_amount,
-             a.gps_status, a.selfie, a.checkout_selfie,
-             a.checkin_address, a.checkout_address, a.status, a.date, a.notes
-      FROM employees e
-      LEFT JOIN attendance a ON a.employee_id = e.id AND a.date = ?
-      WHERE e.role = 'employee'
-      ORDER BY e.name ASC
-    `).all(targetDate);
+    const result = await query(
+      `SELECT 
+          e.id as employee_id,
+          e.name as employee_name,
+          e.department,
+          e.monthly_salary,
+          a.id,
+          a.check_in_time,
+          a.check_out_time,
+          a.salary_type,
+          a.deduction_amount,
+          a.checkout_deduction_amount,
+          a.gps_status,
+          a.selfie,
+          a.checkout_selfie,
+          a.checkin_address,
+          a.checkout_address,
+          a.status,
+          a.date,
+          a.notes
+       FROM employees e
+       LEFT JOIN attendance a 
+         ON a.employee_id = e.id 
+        AND a.date = $1
+       WHERE e.role = 'employee'
+       ORDER BY e.name ASC`,
+      [targetDate]
+    );
 
-    res.json({ success: true, date: targetDate, data: rows });
+    res.json({
+      success: true,
+      date: targetDate,
+      data: result.rows
+    });
+
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    res.status(500).json({
+      success: false,
+      message: err.message
+    });
   }
 });
 

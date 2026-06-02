@@ -3,7 +3,7 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
-const db = require('../config/database');
+const { query } = require('../config/postgres');
 const { sendOtpEmail } = require('../services/emailService');
 
 // In-memory OTP store: { email -> { code, expiry, userName } }
@@ -11,47 +11,141 @@ const otpStore = new Map();
 const generateOtp = () => Math.floor(100000 + Math.random() * 900000).toString();
 
 // POST /api/auth/register
-router.post('/register', (req, res) => {
+router.post('/register', async (req, res) => {
   try {
-    const { name, email, password, department, monthly_salary, phone, education, birth_date, age, gender, address } = req.body;
-    if (!name || !email || !password)
-      return res.status(400).json({ success: false, message: 'Name, email, and password are required' });
+    const {
+      name, email, password,
+      department, monthly_salary,
+      phone, education,
+      birth_date, age,
+      gender, address
+    } = req.body;
 
-    const existing = db.prepare('SELECT id FROM employees WHERE email = ?').get(email.toLowerCase().trim());
-    if (existing)
-      return res.status(409).json({ success: false, message: 'Email already registered' });
+    if (!name || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name, email, and password are required'
+      });
+    }
 
-    const hash = bcrypt.hashSync(password, 10);
+    const existing = await query(
+      'SELECT id FROM employees WHERE email = $1',
+      [email.toLowerCase().trim()]
+    );
+
+    if (existing.rows.length > 0) {
+      return res.status(409).json({
+        success: false,
+        message: 'Email already registered'
+      });
+    }
+
     const id = uuidv4();
-    db.prepare(`INSERT INTO employees (id,name,email,password,role,department,monthly_salary,phone,education,birth_date,age,gender,address) VALUES (?,?,?,?,'employee',?,?,?,?,?,?,?,?)`)
-      .run(id, name.trim(), email.toLowerCase().trim(), hash, department||'General', monthly_salary||30000, phone||null, education||null, birth_date||null, age||null, gender||null, address||null);
+    const hash = bcrypt.hashSync(password, 10);
 
-    const token = jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || '7d' });
-    const user = db.prepare('SELECT id,name,email,role,department,monthly_salary,phone,education,birth_date,age,gender,address FROM employees WHERE id=?').get(id);
-    res.status(201).json({ success: true, message: 'Registered successfully', token, user });
+    await query(
+      `INSERT INTO employees
+       (id,name,email,password,role,department,monthly_salary,
+        phone,education,birth_date,age,gender,address)
+       VALUES
+       ($1,$2,$3,$4,'employee',$5,$6,$7,$8,$9,$10,$11,$12)`,
+      [
+        id,
+        name.trim(),
+        email.toLowerCase().trim(),
+        hash,
+        department || 'General',
+        monthly_salary || 30000,
+        phone || null,
+        education || null,
+        birth_date || null,
+        age || null,
+        gender || null,
+        address || null
+      ]
+    );
+
+    const userResult = await query(
+      `SELECT id,name,email,role,department,
+              monthly_salary,phone,education,
+              birth_date,age,gender,address
+       FROM employees
+       WHERE id = $1`,
+      [id]
+    );
+
+    const token = jwt.sign(
+      { id },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'Registered successfully',
+      token,
+      user: userResult.rows[0]
+    });
+
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, message: 'Registration failed', error: err.message });
+    res.status(500).json({
+      success: false,
+      message: 'Registration failed',
+      error: err.message
+    });
   }
 });
 
 // POST /api/auth/login
-router.post('/login', (req, res) => {
+router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password)
-      return res.status(400).json({ success: false, message: 'Email and password are required' });
 
-    const user = db.prepare('SELECT * FROM employees WHERE email = ?').get(email.toLowerCase().trim());
-    if (!user || !bcrypt.compareSync(password, user.password))
-      return res.status(401).json({ success: false, message: 'Invalid credentials' });
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email and password are required'
+      });
+    }
 
-    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || '7d' });
+    const result = await query(
+      'SELECT * FROM employees WHERE email = $1',
+      [email.toLowerCase().trim()]
+    );
+
+    const user = result.rows[0];
+
+    if (!user || !bcrypt.compareSync(password, user.password)) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials'
+      });
+    }
+
+    const token = jwt.sign(
+      { id: user.id },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    );
+
     const { password: _, ...userSafe } = user;
-    res.json({ success: true, message: 'Login successful', token, user: userSafe });
+
+    res.json({
+      success: true,
+      message: 'Login successful',
+      token,
+      user: userSafe
+    });
+
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, message: 'Login failed', error: err.message });
+
+    res.status(500).json({
+      success: false,
+      message: 'Login failed',
+      error: err.message
+    });
   }
 });
 
@@ -62,7 +156,12 @@ router.post('/forgot-password', async (req, res) => {
     if (!email) return res.status(400).json({ success: false, message: 'Email is required' });
 
     const norm = email.toLowerCase().trim();
-    const user = db.prepare('SELECT id, name, email FROM employees WHERE email = ?').get(norm);
+    const result = await query(
+  'SELECT id, name, email FROM employees WHERE email = $1',
+  [norm]
+);
+
+const user = result.rows[0];
     if (!user)
       return res.status(404).json({ success: false, message: 'No account found with this email address.' });
 
@@ -85,7 +184,7 @@ router.post('/forgot-password', async (req, res) => {
 });
 
 // POST /api/auth/verify-otp — Step 2: validate OTP, issue reset token
-router.post('/verify-otp', (req, res) => {
+router.post('/verify-otp', async (req, res) => {
   try {
     const { email, otp } = req.body;
     if (!email || !otp)
@@ -104,7 +203,12 @@ router.post('/verify-otp', (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid OTP. Please check and try again.' });
 
     otpStore.delete(norm);
-    const user = db.prepare('SELECT id FROM employees WHERE email = ?').get(norm);
+    const result = await query(
+  'SELECT id FROM employees WHERE email = $1',
+  [norm]
+);
+
+const user = result.rows[0];
     const resetToken = jwt.sign({ id: user.id, email: norm, purpose: 'password_reset' }, process.env.JWT_SECRET, { expiresIn: '15m' });
 
     res.json({ success: true, message: 'OTP verified.', reset_token: resetToken, user_name: record.userName });
@@ -115,7 +219,7 @@ router.post('/verify-otp', (req, res) => {
 });
 
 // POST /api/auth/reset-password — Step 3: set new password
-router.post('/reset-password', (req, res) => {
+router.post('/reset-password', async (req, res) => {
   try {
     const { reset_token, new_password } = req.body;
     if (!reset_token || !new_password)
@@ -130,10 +234,21 @@ router.post('/reset-password', (req, res) => {
     if (decoded.purpose !== 'password_reset')
       return res.status(400).json({ success: false, message: 'Invalid reset token' });
 
-    const user = db.prepare('SELECT id FROM employees WHERE id = ?').get(decoded.id);
+    const result = await query(
+  'SELECT id FROM employees WHERE id = $1',
+  [decoded.id]
+);
+
+const user = result.rows[0];
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
-    db.prepare('UPDATE employees SET password = ? WHERE id = ?').run(bcrypt.hashSync(new_password, 10), decoded.id);
+    await query(
+  'UPDATE employees SET password = $1 WHERE id = $2',
+  [
+    bcrypt.hashSync(new_password, 10),
+    decoded.id
+  ]
+);
     res.json({ success: true, message: 'Password Reset Successful' });
   } catch (err) {
     console.error(err);
