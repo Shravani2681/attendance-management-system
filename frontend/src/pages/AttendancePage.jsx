@@ -235,14 +235,14 @@ const AttendancePage = () => {
     <div style={{ minHeight: '100vh', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
 
       {/* ── Header ── */}
-      <header style={{ background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', padding: '1rem 2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <button onClick={() => navigate('/dashboard')} style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: '8px', padding: '0.4rem 0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}>
+    <header className="attendance-header" style={{ background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)',  position: 'sticky', top: 0, zIndex: 100 }}>
+        <div style={{  gap: '1rem' }}>
+          <button onClick={() => navigate('/dashboard')} style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-muted)', borderRadius: '8px', padding: '0.4rem 0.8rem', cursor: 'pointer',  gap: '0.4rem', fontSize: '0.85rem' }}>
             <ArrowLeft size={16} /> Back
           </button>
           <h1 style={{ fontSize: '1.3rem', fontWeight: '700', margin: 0 }}>📍 Attendance</h1>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        <div className="mobile-actions">
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>{user?.name}</div>
             <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{user?.department}</div>
@@ -254,7 +254,7 @@ const AttendancePage = () => {
       </header>
 
       {/* ── Sub-nav ── */}
-      <div style={{ background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', display: 'flex', padding: '0 2rem' }}>
+     <div className="attendance-subnav">
         {[{ id: 'mark', label: '📸 Mark Attendance' }, { id: 'history', label: '📋 My History' }].map(tab => (
           <button key={tab.id} onClick={() => setActiveSection(tab.id)}
             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.8rem 1.2rem', fontSize: '0.9rem', fontWeight: activeSection === tab.id ? '700' : '400', color: activeSection === tab.id ? 'var(--primary)' : 'var(--text-muted)', borderBottom: activeSection === tab.id ? '2px solid var(--primary)' : '2px solid transparent', transition: 'all 0.2s' }}>
@@ -263,13 +263,13 @@ const AttendancePage = () => {
         ))}
       </div>
 
-      <main style={{ maxWidth: '760px', margin: '0 auto', padding: '2rem 1rem' }}>
+      <main className="attendance-main">
 
         {/* ══════════ MARK ATTENDANCE ══════════ */}
         {activeSection === 'mark' && (
           <>
             {/* Permission warning banner */}
-            <div style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: '10px', padding: '0.8rem 1.2rem', marginBottom: '1.2rem', display: 'flex', alignItems: 'center', gap: '0.8rem', fontSize: '0.85rem' }}>
+            <div style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: '10px', padding: '0.8rem 1.2rem', marginBottom: '1.2rem',  gap: '0.8rem', fontSize: '0.85rem' }}>
               <span style={{ fontSize: '1.2rem' }}>ℹ️</span>
               <span style={{ color: 'var(--text-muted)' }}>
                 <strong style={{ color: 'var(--text-primary)' }}>Camera and GPS Location</strong> access are required to mark attendance. Please allow both when prompted.
@@ -283,7 +283,7 @@ const AttendancePage = () => {
 
               {/* ── Check-In Rules ── */}
               <div style={{ marginTop: '1rem', marginBottom: '0.4rem', fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Check-In Rules</div>
-              <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '0.8rem' }}>
+              <div style={{  gap: '0.4rem', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '0.8rem' }}>
                 <span style={{ fontSize: '0.73rem', padding: '0.3rem 0.7rem', borderRadius: '20px', background: 'rgba(16,185,129,0.15)', color: 'var(--success)' }}>Before 10:15 AM → Full Salary</span>
                 <span style={{ fontSize: '0.73rem', padding: '0.3rem 0.7rem', borderRadius: '20px', background: 'rgba(245,158,11,0.15)', color: 'var(--warning)' }}>10:15 AM – 1:00 PM → -₹50</span>
                 <span style={{ fontSize: '0.73rem', padding: '0.3rem 0.7rem', borderRadius: '20px', background: 'rgba(239,68,68,0.15)', color: 'var(--danger)' }}>After 1:00 PM → Half Day</span>
@@ -291,7 +291,7 @@ const AttendancePage = () => {
 
               {/* ── Check-Out Rules ── */}
               <div style={{ marginTop: '0.2rem', marginBottom: '0.4rem', fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Check-Out Rules</div>
-              <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+              <div style={{  gap: '0.4rem', justifyContent: 'center', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: '0.73rem', padding: '0.3rem 0.7rem', borderRadius: '20px', background: 'rgba(239,68,68,0.15)', color: 'var(--danger)' }}>Before 2:00 PM → Half Day</span>
                 <span style={{ fontSize: '0.73rem', padding: '0.3rem 0.7rem', borderRadius: '20px', background: 'rgba(245,158,11,0.15)', color: 'var(--warning)' }}>2:00 – 3:00 PM → -₹100</span>
                 <span style={{ fontSize: '0.73rem', padding: '0.3rem 0.7rem', borderRadius: '20px', background: 'rgba(251,191,36,0.15)', color: '#d97706' }}>3:00 – 4:30 PM → -₹50</span>
@@ -307,7 +307,7 @@ const AttendancePage = () => {
             ) : (
               <div className="glass-card" style={{ marginBottom: '1.5rem', padding: '2rem' }}>
                 {todayRecord ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.2rem', textAlign: 'center' }}>
+                  <div style={{  flexDirection: 'column',  gap: '1.2rem', textAlign: 'center' }}>
                     <CheckCircle size={56} color={getBadgeColor(todayRecord.salary_type)} />
                     <div>
                       <h2 style={{ fontSize: '1.3rem', fontWeight: '700', marginBottom: '0.3rem' }}>Attendance Recorded</h2>
@@ -326,7 +326,7 @@ const AttendancePage = () => {
                     </div>
 
                     {/* Selfies row */}
-                    <div style={{ display: 'flex', gap: '1.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                    <div style={{  gap: '1.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
                       {todayRecord.selfie && (
                         <div style={{ textAlign: 'center' }}>
                           <img src={todayRecord.selfie} alt="Check-in selfie" style={{ width: '72px', height: '72px', borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--success)' }} />
@@ -344,19 +344,19 @@ const AttendancePage = () => {
                     {/* Times */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', width: '100%' }}>
                       <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '10px', padding: '1rem' }}>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}><Clock size={12} /> Check-In Time</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.3rem',   gap: '0.4rem' }}><Clock size={12} /> Check-In Time</div>
                         <div style={{ fontWeight: '700', fontSize: '1.1rem' }}>{todayRecord.check_in_time}</div>
                         {todayRecord.checkin_address && (
-                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.3rem', display: 'flex', alignItems: 'flex-start', gap: '0.3rem' }}>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.3rem',  alignItems: 'flex-start', gap: '0.3rem' }}>
                             <MapPin size={11} style={{ flexShrink: 0, marginTop: '2px' }} />{shortAddr(todayRecord.checkin_address)}
                           </div>
                         )}
                       </div>
                       <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '10px', padding: '1rem' }}>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}><Clock size={12} /> Check-Out Time</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.3rem',   gap: '0.4rem' }}><Clock size={12} /> Check-Out Time</div>
                         <div style={{ fontWeight: '700', fontSize: '1.1rem' }}>{todayRecord.check_out_time || '—'}</div>
                         {todayRecord.checkout_address && (
-                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.3rem', display: 'flex', alignItems: 'flex-start', gap: '0.3rem' }}>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.3rem',  alignItems: 'flex-start', gap: '0.3rem' }}>
                             <MapPin size={11} style={{ flexShrink: 0, marginTop: '2px' }} />{shortAddr(todayRecord.checkout_address)}
                           </div>
                         )}
@@ -365,8 +365,8 @@ const AttendancePage = () => {
 
                     {/* Check-Out button or Day-Complete badge */}
                     {dayComplete ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
-                        <div style={{ background: 'rgba(16,185,129,0.15)', border: '1px solid var(--success)', borderRadius: '12px', padding: '0.8rem 1.8rem', display: 'flex', alignItems: 'center', gap: '0.6rem', color: 'var(--success)', fontWeight: '600' }}>
+                      <div style={{  flexDirection: 'column',  gap: '0.5rem' }}>
+                        <div style={{ background: 'rgba(16,185,129,0.15)', border: '1px solid var(--success)', borderRadius: '12px', padding: '0.8rem 1.8rem',   gap: '0.6rem', color: 'var(--success)', fontWeight: '600' }}>
                           <CheckCircle size={18} /> Attendance Complete for Today
                         </div>
                         <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: 0 }}>
@@ -411,19 +411,19 @@ const AttendancePage = () => {
 
             {/* Status banners */}
             {gpsStatus === 'fetching' && (
-              <div className="glass-card" style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem 1.5rem', marginBottom: '1rem' }}>
+              <div className="glass-card" style={{   gap: '1rem', padding: '1rem 1.5rem', marginBottom: '1rem' }}>
                 <Loader size={20} style={{ animation: 'spin 1s linear infinite', color: 'var(--primary)' }} />
                 <span>Fetching GPS location — please wait…</span>
               </div>
             )}
             {success && (
-              <div className="glass-card" style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem 1.5rem', marginBottom: '1rem', borderColor: 'var(--success)' }}>
+              <div className="glass-card" style={{   gap: '1rem', padding: '1rem 1.5rem', marginBottom: '1rem', borderColor: 'var(--success)' }}>
                 <CheckCircle size={20} color="var(--success)" />
                 <span style={{ color: 'var(--success)' }}>{success}</span>
               </div>
             )}
             {error && (
-              <div className="glass-card" style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem 1.5rem', borderColor: 'var(--danger)' }}>
+              <div className="glass-card" style={{   gap: '1rem', padding: '1rem 1.5rem', borderColor: 'var(--danger)' }}>
                 <AlertCircle size={20} color="var(--danger)" />
                 <span style={{ color: 'var(--danger)', fontWeight: 500 }}>{error}</span>
               </div>
@@ -444,7 +444,7 @@ const AttendancePage = () => {
                   { label: 'Est. Earned', value: `₹${summary.earned}`, color: 'var(--primary)', icon: '💰' },
                 ].map(stat => (
                   <div key={stat.label} className="glass-card stat-card" style={{ padding: '1rem' }}>
-                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '0.4rem',   gap: '0.4rem' }}>
                       <span>{stat.icon}</span>
                       {stat.label}
                     </div>
@@ -455,7 +455,7 @@ const AttendancePage = () => {
             )}
 
             <div className="glass-card" style={{ padding: '1.5rem' }}>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: '700', marginBottom: '1.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: '700', marginBottom: '1.2rem', gap: '0.5rem' }}>
                 📋 Attendance History
                 <span style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--text-muted)', marginLeft: 'auto' }}>
                   {history.length} records this month
@@ -534,12 +534,12 @@ const AttendancePage = () => {
                                 <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{dayName}</div>
                               </td>
                               <td data-label="Check-In">
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <div style={{   gap: '0.5rem' }}>
                                   {record.selfie && (
                                     <img src={record.selfie} alt="in" style={{ width: '30px', height: '30px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--success)', flexShrink: 0 }} />
                                   )}
                                   <div>
-                                    <div style={{ fontWeight: 600, fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                    <div style={{ fontWeight: 600, fontSize: '0.88rem',   gap: '0.25rem' }}>
                                       <Clock size={12} color="var(--text-muted)" />{record.check_in_time}
                                     </div>
                                   </div>
@@ -547,12 +547,12 @@ const AttendancePage = () => {
                               </td>
                               <td data-label="Check-Out">
                                 {record.check_out_time ? (
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                  <div style={{   gap: '0.5rem' }}>
                                     {record.checkout_selfie && (
                                       <img src={record.checkout_selfie} alt="out" style={{ width: '30px', height: '30px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--warning)', flexShrink: 0 }} />
                                     )}
                                     <div>
-                                      <div style={{ fontWeight: 600, fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                      <div style={{ fontWeight: 600, fontSize: '0.88rem',  gap: '0.25rem' }}>
                                         <Clock size={12} color="var(--text-muted)" />{record.check_out_time}
                                       </div>
                                     </div>
@@ -566,7 +566,7 @@ const AttendancePage = () => {
                               </td>
                               <td data-label="Deductions">
                                 {totalDeduction > 0 ? (
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                  <div style={{  flexDirection: 'column', gap: '0.25rem' }}>
                                     {record.deduction_amount > 0 && (
                                       <span className="deduction-chip">Late -₹{record.deduction_amount}</span>
                                     )}

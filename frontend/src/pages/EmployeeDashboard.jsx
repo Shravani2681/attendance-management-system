@@ -146,7 +146,7 @@ const EmployeeDashboard = () => {
             <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>{user.department}</p>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <div className="mobile-actions">
           <button
             onClick={() => navigate('/attendance')}
             className="btn"
@@ -168,7 +168,7 @@ const EmployeeDashboard = () => {
       </div>
 
       <div className="stats-grid">
-        <div className="glass-card stat-card" style={{ gridColumn: 'span 2' }}>
+        <div className="glass-card stat-card">
           <div className="stat-title">Current Time</div>
           <div className="clock">{format(currentTime, 'hh:mm:ss a')}</div>
           <div className="text-center" style={{ color: 'var(--text-muted)' }}>
