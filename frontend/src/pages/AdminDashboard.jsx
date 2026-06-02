@@ -463,8 +463,13 @@ export default function AdminDashboard() {
                     {label:'Total Employees', val:salaryData.length, color:'#818cf8', icon:'👥'},
                     {label:'Total Present Days', val:salaryData.reduce((s,r)=>s+r.present_days,0), color:'#10b981', icon:'📅'},
                     {label:'Total Absent Days', val:salaryData.reduce((s,r)=>s+(r.absent_days||0),0), color:'#991b1b', icon:'🚫'},
-                    {label:'Total Deductions', val:`₹${salaryData.reduce((s,r)=>s+r.total_deductions,0)}`, color:'#ef4444', icon:'📉'},
-                    {label:'Total Payroll', val:`₹${Math.round(salaryData.reduce((s,r)=>s+(r.final_salary||0),0)).toLocaleString('en-IN')}`, color:'#f59e0b', icon:'💰'},
+                    {label:'Total Deductions', val:`₹${Number(salaryData.reduce((s,r)=>s+Number(r.total_deductions||0),0)).toLocaleString('en-IN')}`, color:'#ef4444', icon:'📉'},
+{
+  label:'Total Payroll',
+  val:`₹${Math.round(salaryData.reduce((s,r)=>s+Number(r.final_salary||0),0)).toLocaleString('en-IN')}`,
+  color:'#f59e0b',
+  icon:'💰'
+},
                   ].map(c=>(
                     <div key={c.label} className="adm-stat">
                       <div className="adm-stat-label">{c.icon} {c.label}</div>
